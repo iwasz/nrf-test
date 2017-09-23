@@ -25,12 +25,16 @@ SET (APP_SOURCES
         "../libmicro/src/ErrorHandler.h"
         "../libmicro/src/ErrorHandler.c"
         "../libmicro/src/Hal.h"
+        "../libmicro/src/HalStm32F0.h"
+        "../libmicro/src/HalStm32F0.cc"
         "../libmicro/src/Timer.cc"
         "../libmicro/src/Timer.h"
         "../libmicro/src/Debug.cc"
         "../libmicro/src/Debug.h"
         "../libmicro/src/Gpio.cc"
         "../libmicro/src/Gpio.h"
+        "../libmicro/src/Spi.cc"
+        "../libmicro/src/Spi.h"
 
 # +--------------+
 # | STM Cube     |

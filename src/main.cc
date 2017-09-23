@@ -1,6 +1,7 @@
 #include <Debug.h>
 #include <ErrorHandler.h>
 #include <Gpio.h>
+#include <Spi.h>
 #include <cstdbool>
 #include <cstring>
 #include <functional>
@@ -15,56 +16,6 @@ void __verbose_terminate_handler ()
 }
 
 static void SystemClock_Config (void);
-
-/*****************************************************************************/
-
-class Spi {
-public:
-        Spi (SPI_TypeDef *spi, GPIO_TypeDef *port, uint32_t pins, uint32_t alternate);
-        ~Spi ();
-
-        uint8_t transmit (uint8_t byte);
-
-        void setCallback (std::function<void(uint8_t)> const &f) { fff = f; }
-
-private:
-        SPI_TypeDef *spi;
-        SPI_HandleTypeDef accelSpiHandle;
-        GPIO_InitTypeDef gpioInitStructure;
-        std::function<void(uint8_t)> fff;
-};
-
-Spi::Spi (SPI_TypeDef *spi, GPIO_TypeDef *port, uint32_t pins, uint32_t alternate)
-{
-        __HAL_RCC_SPI2_CLK_ENABLE ();
-        Gpio::clkEnable (port);
-        gpioInitStructure.Pin = pins;
-        gpioInitStructure.Mode = GPIO_MODE_AF_PP;
-        gpioInitStructure.Pull = GPIO_NOPULL;
-        gpioInitStructure.Speed = GPIO_SPEED_FREQ_HIGH;
-        gpioInitStructure.Alternate = alternate;
-        HAL_GPIO_Init (port, &gpioInitStructure);
-
-        SPI_HandleTypeDef accelSpiHandle;
-
-        accelSpiHandle.Instance = spi;
-        accelSpiHandle.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-        accelSpiHandle.Init.Direction = SPI_DIRECTION_2LINES;
-        accelSpiHandle.Init.CLKPhase = SPI_PHASE_1EDGE;
-        accelSpiHandle.Init.CLKPolarity = SPI_POLARITY_LOW;
-        accelSpiHandle.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-        accelSpiHandle.Init.CRCPolynomial = 7;
-        accelSpiHandle.Init.DataSize = SPI_DATASIZE_8BIT;
-        accelSpiHandle.Init.FirstBit = SPI_FIRSTBIT_MSB;
-        accelSpiHandle.Init.NSS = SPI_NSS_HARD_OUTPUT;
-        accelSpiHandle.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-        accelSpiHandle.Init.TIMode = SPI_TIMODE_DISABLE;
-        accelSpiHandle.Init.Mode = SPI_MODE_MASTER;
-
-        HAL_SPI_Init (&accelSpiHandle);
-}
-
-uint8_t Spi::transmit (uint8_t byte) { return 0; }
 
 /*****************************************************************************/
 
@@ -90,17 +41,53 @@ int main (void)
         d->init (115200);
         d->print ("nRF24L01+ test here\n");
 
-        for (;;) {
-        }
+        Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
+        HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
+        HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
+        button.setOnToggle ([d] { d->print ("#"); });
 
-        //        Gpio ce1 (GPIOA, GPIO_PIN_2);
-        //        ce1.set (false);
+        Gpio ce1 (GPIOA, GPIO_PIN_2);
+        ce1.set (false);
 
-        Gpio irq1 (GPIOA, GPIO_PIN_2, GPIO_MODE_IT_FALLING);
+        Gpio irq1 (GPIOA, GPIO_PIN_3, GPIO_MODE_IT_FALLING);
+        HAL_NVIC_SetPriority (EXTI2_3_IRQn, 3, 0);
+        HAL_NVIC_EnableIRQ (EXTI2_3_IRQn);
+        irq1.setOnToggle ([d] { d->print ("IRQ\n"); });
 
-        irq1.setOnToggle ([] {});
+        Gpio spiGpios (GPIOA, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI1);
+        Gpio spiGpios2 (GPIOB, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI1);
+        Spi spi1 (SPI1);
 
-        //        Spi spi1 (SPI1, GPIOA, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7, GPIO_AF0_SPI1);
+        //        uint16_t ret = spi1.transmit (0xff);
+        //        d->print (ret);
+        //        d->print ("\n");
+        //        ret = spi1.transmit (0xff);
+        //        d->print (ret);
+        //        d->print ("\n");
+        //        ret = spi1.transmit (0xff);
+        //        d->print (ret);
+        //        d->print ("\n");
+        //        ret = spi1.transmit (0xff);
+
+        enum Nrf24L01PCommands { NOP = 0xff };
+        uint8_t bufferTx[16];
+        uint8_t bufferRx[16];
+        bufferTx[0] = NOP;
+        spi1.transmit (bufferTx, bufferRx, 1);
+
+        d->print ("Received [");
+        d->print (bufferRx[0]);
+        d->print ("]\n");
+
+        Gpio spi2Gpios (GPIOB, GPIO_PIN_9 | GPIO_PIN_10, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF5_SPI2);
+        // MOSI (15), MISO (14)
+        Gpio spi2Gpios3 (GPIOB, GPIO_PIN_15 | GPIO_PIN_14, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI2);
+        Spi spi2 (SPI2);
+        spi2.transmit (bufferTx, bufferRx, 1);
+
+        d->print ("Received2 [");
+        d->print (bufferRx[0]);
+        d->print ("]\n");
 
         //        uint8_t buff[5];
         //        int i = 0;
