@@ -35,6 +35,8 @@ SET (APP_SOURCES
         "../libmicro/src/Gpio.h"
         "../libmicro/src/Spi.cc"
         "../libmicro/src/Spi.h"
+        "../libmicro/src/Nrf24L01P.cc"
+        "../libmicro/src/Nrf24L01P.h"
 
 # +--------------+
 # | STM Cube     |
