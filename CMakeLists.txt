@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 SET (CMAKE_VERBOSE_MAKEFILE OFF)
 
 PROJECT (nrf-test)
-include (stm32.cmake)
+ENABLE_LANGUAGE (ASM-ATT)
 
 INCLUDE_DIRECTORIES("src/")
 INCLUDE_DIRECTORIES("../libmicro/src/")
@@ -10,13 +10,10 @@ INCLUDE_DIRECTORIES("../libmicro/src/")
 # +-----------------+
 # | My code         |
 # +-----------------+
-SET (APP_SOURCES
+ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf
         "src/main.cc"
         "src/utils.cc"
         "src/utils.h"
-        "src/stm32f4xx_it.c"
-        "src/syscalls.c"
-        "src/system_stm32f0xx.c"
         "src/stm32f0xx_hal_conf.h"
         "src/config.h"
         "../libmicro/src/storage/ICircullarQueueStorage.h"
@@ -37,10 +34,15 @@ SET (APP_SOURCES
         "../libmicro/src/Spi.h"
         "../libmicro/src/Nrf24L01P.cc"
         "../libmicro/src/Nrf24L01P.h"
+)
 
 # +--------------+
 # | STM Cube     |
 # +--------------+
+add_library ("stm" STATIC
+        "src/stm32f4xx_it.c"
+        "src/syscalls.c"
+        "src/system_stm32f0xx.c"
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc.c"
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc_ex.c"
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal.c"
@@ -128,16 +130,12 @@ SET (APP_SOURCES
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_crc_ex.h"
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_rtc_ex.h"
         "${CUBE_ROOT}/Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_cortex.h"
-        "${STARTUP_CODE}")
+        "${STARTUP_CODE}"
+)
 
-
-ADD_DEFINITIONS ("-DHSE_VALUE=${CRYSTAL_HZ}")
-
-ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf ${APP_SOURCES})
 TARGET_LINK_LIBRARIES (${CMAKE_PROJECT_NAME}.elf stdc++)
+TARGET_LINK_LIBRARIES (${CMAKE_PROJECT_NAME}.elf -Wl,--whole-archive stm -Wl,--no-whole-archive)
 
-SET (CMAKE_OBJCOPY ${TOOLCHAIN_BIN_DIR}/${TARGET_TRIPLET}-objcopy)
-SET (CMAKE_OBJDUMP ${TOOLCHAIN_BIN_DIR}/${TARGET_TRIPLET}-objdump)
 ADD_CUSTOM_TARGET(${CMAKE_PROJECT_NAME}.bin ALL DEPENDS ${CMAKE_PROJECT_NAME}.elf COMMAND ${CMAKE_OBJCOPY} -Obinary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin)
 
 FIND_PROGRAM (ST_FLASH st-flash)
