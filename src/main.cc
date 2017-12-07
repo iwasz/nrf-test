@@ -3,6 +3,7 @@
 #include <Gpio.h>
 #include <Nrf24L01P.h>
 #include <Spi.h>
+#include <Timer.h>
 #include <cstdbool>
 #include <cstring>
 #include <functional>
@@ -40,10 +41,10 @@ int main (void)
 
         const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 #define CX10_PACKET_SIZE 15
-#define CX10A_PACKET_SIZE 19 // CX10 blue board packets have 19-byte payload
+// CX10 blue board packets have 19-byte payload
+#define CX10A_PACKET_SIZE 19
 #define Q282_PACKET_SIZE 21
-//#define PACKET_SIZE CX10A_PACKET_SIZE
-#define PACKET_SIZE 1
+#define PACKET_SIZE CX10A_PACKET_SIZE
 #define CHANNEL 0x02
 
         Gpio ceTx (GPIOA, GPIO_PIN_2);
@@ -60,44 +61,31 @@ int main (void)
         Spi spiTx (SPI1);
         spiTx.setNssPin (&spiTxGpiosNss);
 
-        Nrf24L01P nrfTx (&spiTx, &ceTx, nullptr);
-
 #if 1
-        nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_1);
-        nrfTx.setAutoAck (Nrf24L01P::ENAA_P1 | Nrf24L01P::ENAA_P0);      // Redundant
-        nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P1 | Nrf24L01P::ERX_P0); // Redundant
-        nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);                       // Redundant
-        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
-        nrfTx.setChannel (100);
-        nrfTx.setPayloadLength (0, 1);
-        nrfTx.setPayloadLength (1, 1);
-        nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-#else
+        Nrf24L01P nrfTx (&spiTx, &ceTx, nullptr);
+//        nrfTx.writeRegister (Nrf24L01P::STATUS, 0x70); // Clear IRQS
         nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
-        nrfTx.setAutoAck (Nrf24L01P::ENAA_P1);                               // Redundant
-        nrfTx.setEnableDataPipe (/*Nrf24L01P::ERX_P1 |*/ Nrf24L01P::ERX_P0); // Redundant
-        nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);                           // Redundant
+        nrfTx.setTxAddress (CX10_ADDRESS, 5);
         nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
-        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
-        nrfTx.setChannel (2);
+//        nrfTx.flushTx ();
+        nrfTx.setAutoAck (0x00);
+        nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
+        nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);
+        nrfTx.setChannel (CHANNEL);
+        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_250, Nrf24L01P::RETRANSMIT_0);
         nrfTx.setPayloadLength (0, PACKET_SIZE);
-        //        nrfTx.setPayloadLength (1, 1);
         nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
         nrfTx.setEnableDynamicPayload (0x00);
         nrfTx.setFeature (0x00);
-#endif
         nrfTx.powerUp (Nrf24L01P::TX);
+#endif
 
-        //        uint8_t buff[5];
-        //        int i = 0;
-        //        spi1.setCallback ([&i, &buff](uint8_t c) { buff[i++] = c; });
         /*---------------------------------------------------------------------------*/
 
-        uint8_t bufTx[PACKET_SIZE] = {
-                0x66,
-        };
+        static uint8_t bufTx[PACKET_SIZE]
+                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
 
-        uint8_t bufRx[PACKET_SIZE] = {
+        static uint8_t bufRx[PACKET_SIZE] = {
                 0x00,
         };
 
@@ -116,49 +104,71 @@ int main (void)
         Spi spiRx (SPI2);
         spiRx.setNssPin (&spiRxGpiosNss);
 
+#if 1
         Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
-        nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_1);
-        nrfRx.setAutoAck (Nrf24L01P::ENAA_P1 | Nrf24L01P::ENAA_P0);      // Redundant
-        nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P1 | Nrf24L01P::ERX_P0); // Redundant
-        nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);                       // Redundant
-        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
-        nrfRx.setChannel (100);
+        nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
+        nrfRx.setTxAddress (CX10_ADDRESS, 5);
+        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
+        nrfRx.setAutoAck (0x00);
+        nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
+        nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
+        nrfRx.setChannel (CHANNEL);
+        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_250, Nrf24L01P::RETRANSMIT_0);
+        nrfRx.setPayloadLength (0, PACKET_SIZE);
         nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-        nrfRx.setPayloadLength (0, 1);
-        nrfRx.setPayloadLength (1, 1);
-
-//        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
-//                d->print ("RX : ");
-//                for (int i = 0; i < PACKET_SIZE; ++i) {
-//                        d->print (bufRx[i]);
-//                }
-//                d->print ("\n");
-//        });
-
+        nrfRx.setEnableDynamicPayload (0x00);
+        nrfRx.setFeature (0x00);
         nrfRx.powerUp (Nrf24L01P::RX);
+#endif
+
+        //        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
+        //                d->print ("RX : ");
+        //                for (int i = 0; i < PACKET_SIZE; ++i) {
+        //                        d->print (bufRx[i]);
+        //                }
+        //                d->print ("\n");
+        //        });
 
         /*****************************************************************************/
+        Timer tim;
 
         while (1) {
+#if 1
+                nrfTx.writeRegister (Nrf24L01P::CONFIG, 0x0e);
+                nrfTx.writeRegister (Nrf24L01P::RF_CH, 0x02);
+                nrfTx.writeRegister (Nrf24L01P::STATUS, 0x70);
+                nrfTx.flushTx ();
+
                 nrfTx.transmit (bufTx, PACKET_SIZE);
-                ++bufTx[0];
+                ++bufTx[1];
 
-                d->print ("TX : ");
-                for (int i = 0; i < PACKET_SIZE; ++i) {
-                        d->print (bufTx[i]);
-                }
-                d->print ("\n");
+//                d->print ("TX : ");
+//                for (int i = 0; i < PACKET_SIZE; ++i) {
+//                        d->print (bufTx[i]);
+//                        d->print (",");
+//                }
+//                d->print ("\n");
+#endif
 
                 HAL_Delay (500);
 
-                // TODO czemu to musi tu być!? Czemu IRQ się nie zgłąsza samo!!!
-                uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
-                d->print ("RX : ");
-                for (int i = 0; i < PACKET_SIZE; ++i) {
-                        d->print (out[i]);
+#if 1
+                if (tim.isExpired ()) {
+#if 1
+                        // TODO czemu to musi tu być!? Czemu IRQ się nie zgłąsza samo!!!
+                        uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
+                        d->print ("RX : ");
+                        for (int i = 0; i < PACKET_SIZE; ++i) {
+                                d->print (out[i]);
+                                d->print (",");
+                        }
+                        d->print ("\n");
+#else
+                        d->print (".\n");
+#endif
+                        tim.start (1000);
                 }
-                d->print ("\n");
-                HAL_Delay (500);
+#endif
         }
 }
 
