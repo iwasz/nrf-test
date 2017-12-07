@@ -47,7 +47,7 @@ int main (void)
 #define PACKET_SIZE CX10A_PACKET_SIZE
 #define CHANNEL 0x02
 
-        Gpio ceTx (GPIOA, GPIO_PIN_2);
+        Gpio ceTx (GPIOC, GPIO_PIN_0);
         ceTx.set (false);
 
         //        Gpio irqTx (GPIOA, GPIO_PIN_3, GPIO_MODE_IT_FALLING, GPIO_PULLUP);
@@ -63,12 +63,11 @@ int main (void)
 
 #if 1
         Nrf24L01P nrfTx (&spiTx, &ceTx, nullptr);
-//        nrfTx.writeRegister (Nrf24L01P::STATUS, 0x70); // Clear IRQS
         nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
         nrfTx.setTxAddress (CX10_ADDRESS, 5);
         nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
-//        nrfTx.flushTx ();
-        nrfTx.setAutoAck (0x00);
+//        nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
+        nrfTx.setAutoAck (0);
         nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfTx.setChannel (CHANNEL);
@@ -85,7 +84,7 @@ int main (void)
         static uint8_t bufTx[PACKET_SIZE]
                 = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
 
-        static uint8_t bufRx[PACKET_SIZE] = {
+        uint8_t bufRx[PACKET_SIZE] = {
                 0x00,
         };
 
@@ -109,7 +108,8 @@ int main (void)
         nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
         nrfRx.setTxAddress (CX10_ADDRESS, 5);
         nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
-        nrfRx.setAutoAck (0x00);
+//        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0);
+        nrfRx.setAutoAck (0);
         nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfRx.setChannel (CHANNEL);
@@ -121,54 +121,33 @@ int main (void)
         nrfRx.powerUp (Nrf24L01P::RX);
 #endif
 
-        //        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
-        //                d->print ("RX : ");
-        //                for (int i = 0; i < PACKET_SIZE; ++i) {
-        //                        d->print (bufRx[i]);
-        //                }
-        //                d->print ("\n");
-        //        });
+        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
+                d->print ("IRQ: ");
+                uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
+                for (int i = 0; i < PACKET_SIZE; ++i) {
+                        d->print (out[i]);
+                        d->print (",");
+                }
+                d->print ("\n");
+        });
 
         /*****************************************************************************/
         Timer tim;
 
         while (1) {
 #if 1
-                nrfTx.writeRegister (Nrf24L01P::CONFIG, 0x0e);
-                nrfTx.writeRegister (Nrf24L01P::RF_CH, 0x02);
-                nrfTx.writeRegister (Nrf24L01P::STATUS, 0x70);
-                nrfTx.flushTx ();
-
                 nrfTx.transmit (bufTx, PACKET_SIZE);
                 ++bufTx[1];
 
-//                d->print ("TX : ");
-//                for (int i = 0; i < PACKET_SIZE; ++i) {
-//                        d->print (bufTx[i]);
-//                        d->print (",");
-//                }
-//                d->print ("\n");
+                d->print ("TX : ");
+                for (int i = 0; i < PACKET_SIZE; ++i) {
+                        d->print (bufTx[i]);
+                        d->print (",");
+                }
+                d->print ("\n");
 #endif
 
                 HAL_Delay (500);
-
-#if 1
-                if (tim.isExpired ()) {
-#if 1
-                        // TODO czemu to musi tu być!? Czemu IRQ się nie zgłąsza samo!!!
-                        uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
-                        d->print ("RX : ");
-                        for (int i = 0; i < PACKET_SIZE; ++i) {
-                                d->print (out[i]);
-                                d->print (",");
-                        }
-                        d->print ("\n");
-#else
-                        d->print (".\n");
-#endif
-                        tim.start (1000);
-                }
-#endif
         }
 }
 
