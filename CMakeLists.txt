@@ -29,6 +29,8 @@ ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf
         "../libmicro/src/Debug.h"
         "../libmicro/src/Gpio.cc"
         "../libmicro/src/Gpio.h"
+        "../libmicro/src/Uart.cc"
+        "../libmicro/src/Uart.h"
         "../libmicro/src/Spi.cc"
         "../libmicro/src/Spi.h"
         "../libmicro/src/Nrf24L01P.cc"
@@ -133,6 +135,7 @@ add_library ("stm" STATIC
         "${STARTUP_CODE}"
 )
 
+set_target_properties (${CMAKE_PROJECT_NAME}.elf PROPERTIES COMPILE_FLAGS "-save-temps")
 TARGET_LINK_LIBRARIES (${CMAKE_PROJECT_NAME}.elf stdc++)
 TARGET_LINK_LIBRARIES (${CMAKE_PROJECT_NAME}.elf -Wl,--whole-archive stm -Wl,--no-whole-archive)
 
