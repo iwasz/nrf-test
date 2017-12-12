@@ -27,9 +27,14 @@ int main (void)
         HAL_Init ();
         SystemClock_Config ();
 
-        // PB10 == TX, PB11 == RX
-        Gpio debugGpios (GPIOC, GPIO_PIN_4, GPIO_MODE_AF_OD, GPIO_PULLUP, GPIO_SPEED_FREQ_HIGH, GPIO_AF1_USART3);
+        // C4 = TX, C5 = RX
+        Gpio debugGpios (GPIOC, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_OD, GPIO_PULLUP, GPIO_SPEED_FREQ_HIGH, GPIO_AF1_USART3);
+
         Uart uart (USART3, 115200);
+        HAL_NVIC_SetPriority (USART3_4_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ (USART3_4_IRQn);
+        uart.receive ();
+
         Debug debug (&uart);
         Debug::singleton () = &debug;
 
@@ -42,7 +47,7 @@ int main (void)
         //        button.setOnToggle ([d] { d->print ("#"); });
 
         /*---------------------------------------------------------------------------*/
-
+#if 0
         const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 #define CX10_PACKET_SIZE 15
 // CX10 blue board packets have 19-byte payload
@@ -193,6 +198,10 @@ int main (void)
                 HAL_Delay (500);
                 //                nrfTx.poorMansScanner (200);
         }
+#else
+        while (1) {
+        }
+#endif
 }
 
 /*****************************************************************************/

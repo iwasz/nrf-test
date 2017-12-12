@@ -33,6 +33,8 @@ ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf
         "../libmicro/src/Uart.h"
         "../libmicro/src/Spi.cc"
         "../libmicro/src/Spi.h"
+        "../libmicro/src/Console.cc"
+        "../libmicro/src/Console.h"
         "../libmicro/src/Nrf24L01P.cc"
         "../libmicro/src/Nrf24L01P.h"
 )
