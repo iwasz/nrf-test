@@ -4,7 +4,7 @@
 #include <Nrf24L01P.h>
 #include <Spi.h>
 #include <Timer.h>
-#include <Uart.h>
+#include <Usart.h>
 #include <cstdbool>
 #include <cstring>
 #include <functional>
@@ -30,16 +30,16 @@ int main (void)
         // C4 = TX, C5 = RX
         Gpio debugGpios (GPIOC, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_OD, GPIO_PULLUP, GPIO_SPEED_FREQ_HIGH, GPIO_AF1_USART3);
 
-        Uart uart (USART3, 115200);
+        Usart uart (USART3, 115200);
         HAL_NVIC_SetPriority (USART3_4_IRQn, 6, 0);
         HAL_NVIC_EnableIRQ (USART3_4_IRQn);
-        uart.receive ();
 
         Debug debug (&uart);
         Debug::singleton () = &debug;
-
         Debug *d = Debug::singleton ();
         d->print ("nRF24L01+ test here\n");
+
+        uart.startReceive ([&d](uint8_t c) { d->print (&c, 1); });
 
         Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
         HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
