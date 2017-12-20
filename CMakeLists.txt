@@ -12,9 +12,6 @@ INCLUDE_DIRECTORIES("../libmicro/src/")
 # +-----------------+
 ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf
         "src/main.cc"
-        "src/utils.cc"
-        "src/utils.h"
-        "src/config.h"
         "../libmicro/src/storage/ICircullarQueueStorage.h"
         "../libmicro/src/storage/IRandomAccessStorage.h"
         "../libmicro/src/storage/FlashEepromStorage.h"
