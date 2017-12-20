@@ -1,3 +1,4 @@
+#include <Console.h>
 #include <Debug.h>
 #include <ErrorHandler.h>
 #include <Gpio.h>
@@ -28,18 +29,20 @@ int main (void)
         SystemClock_Config ();
 
         // C4 = TX, C5 = RX
-        Gpio debugGpios (GPIOC, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_OD, GPIO_PULLUP, GPIO_SPEED_FREQ_HIGH, GPIO_AF1_USART3);
+        Gpio usartGpios (GPIOC, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_OD, GPIO_PULLUP, GPIO_SPEED_FREQ_HIGH, GPIO_AF1_USART3);
 
-        Usart uart (USART3, 115200);
         HAL_NVIC_SetPriority (USART3_4_IRQn, 6, 0);
         HAL_NVIC_EnableIRQ (USART3_4_IRQn);
+        Usart uart (USART3, 115200);
 
         Debug debug (&uart);
         Debug::singleton () = &debug;
         Debug *d = Debug::singleton ();
         d->print ("nRF24L01+ test here\n");
 
-        uart.startReceive ([&d](uint8_t c) { d->print (&c, 1); });
+        Console console (&uart);
+        // With lambda code is 200B smaller than with std::bind1st (std::mem_fun (&Console::onData), &console)
+        uart.startReceive ([&console](uint8_t c) { console.onData (c); });
 
         Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
         HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
@@ -200,6 +203,7 @@ int main (void)
         }
 #else
         while (1) {
+                console.run ();
         }
 #endif
 }
