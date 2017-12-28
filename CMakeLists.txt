@@ -34,6 +34,10 @@ ADD_EXECUTABLE(${CMAKE_PROJECT_NAME}.elf
         "../libmicro/src/Console.h"
         "../libmicro/src/Nrf24L01P.cc"
         "../libmicro/src/Nrf24L01P.h"
+        "../libmicro/src/collection/CharacterCircularQueue.h"
+        "../libmicro/src/character/ICharacterInput.h"
+        "../libmicro/src/character/ICharacterOutput.h"
+        "../libmicro/src/character/ICharacterSink.h"
 )
 
 # +--------------+
@@ -141,4 +145,4 @@ TARGET_LINK_LIBRARIES (${CMAKE_PROJECT_NAME}.elf -Wl,--whole-archive stm -Wl,--n
 ADD_CUSTOM_TARGET(${CMAKE_PROJECT_NAME}.bin ALL DEPENDS ${CMAKE_PROJECT_NAME}.elf COMMAND ${CMAKE_OBJCOPY} -Obinary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin)
 
 FIND_PROGRAM (ST_FLASH st-flash)
-ADD_CUSTOM_TARGET("upload" DEPENDS ${CMAKE_PROJECT_NAME}.elf COMMAND ${ST_FLASH} --reset write ${CMAKE_PROJECT_NAME}.bin 0x8000000)
+ADD_CUSTOM_TARGET("upload" DEPENDS ${CMAKE_PROJECT_NAME}.elf COMMAND ${ST_FLASH} write ${CMAKE_PROJECT_NAME}.bin 0x8000000)

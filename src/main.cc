@@ -11,6 +11,14 @@
 #include <functional>
 #include <stm32f0xx_hal.h>
 
+/*****************************************************************************/
+
+const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
+#define PACKET_SIZE 5
+#define CHANNEL 100
+
+/*****************************************************************************/
+
 namespace __gnu_cxx {
 void __verbose_terminate_handler ()
 {
@@ -20,6 +28,35 @@ void __verbose_terminate_handler ()
 } // namespace __gnu_cxx
 
 static void SystemClock_Config (void);
+
+/*****************************************************************************/
+
+class MyConsole : public Console {
+public:
+        MyConsole (Nrf24L01P *n) : nrf (n) {}
+        virtual ~MyConsole () {}
+        void onNewLine (const char *str, size_t len);
+
+private:
+        Nrf24L01P *nrf;
+};
+
+void MyConsole::onNewLine (const char *str, size_t len)
+{
+        uint8_t buffer[5];
+        buffer[0] = str[0]; // command
+
+        if (str[1] != ' ') {
+                Debug::singleton ()->print ("Sytax : c int\n");
+                Debug::singleton ()->print (" c : one letter command\n");
+                Debug::singleton ()->print (" int : 32 bit integer\n");
+                return;
+        }
+
+        int i = atoi (str + 2);
+        memcpy (buffer + 1, &i, sizeof (i));
+        nrf->transmit (buffer, PACKET_SIZE);
+}
 
 /*****************************************************************************/
 
@@ -40,24 +77,12 @@ int main (void)
         Debug *d = Debug::singleton ();
         d->print ("nRF24L01+ test here\n");
 
-        Console console (&uart);
-        // With lambda code is 200B smaller than with std::bind1st (std::mem_fun (&Console::onData), &console)
-        uart.startReceive ([&console](uint8_t c) { console.onData (c); });
-
-        Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
-        HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
-        HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
+        //        Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
+        //        HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
+        //        HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
         //        button.setOnToggle ([d] { d->print ("#"); });
 
         /*---------------------------------------------------------------------------*/
-#if 0
-        const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
-#define CX10_PACKET_SIZE 15
-// CX10 blue board packets have 19-byte payload
-#define CX10A_PACKET_SIZE 19
-#define Q282_PACKET_SIZE 21
-#define PACKET_SIZE CX10A_PACKET_SIZE
-#define CHANNEL 0x02
 
         Gpio ceTx (GPIOC, GPIO_PIN_0);
         ceTx.set (false);
@@ -73,13 +98,11 @@ int main (void)
         Spi spiTx (SPI1);
         spiTx.setNssPin (&spiTxGpiosNss);
 
-        Nrf24L01P nrfRx (&spiTx, &ceTx, nullptr);
-#if 0
+        Nrf24L01P nrfTx (&spiTx, &ceTx, nullptr);
         nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
         nrfTx.setTxAddress (CX10_ADDRESS, 5);
         nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
-//        nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
-        nrfTx.setAutoAck (0);
+        nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
         nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfTx.setChannel (CHANNEL);
@@ -89,25 +112,25 @@ int main (void)
         //        nrfTx.setEnableDynamicPayload (0x00);
         //        nrfTx.setFeature (0x00);
         nrfTx.powerUp (Nrf24L01P::TX);
-#else
-//        nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
-//        nrfTx.setAutoAck (0);
-//        nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
-//        nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-//        nrfTx.powerUp (Nrf24L01P::RX);
-#endif
 
         /*---------------------------------------------------------------------------*/
 
-        static uint8_t bufTx[PACKET_SIZE]
-                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
+        MyConsole console (&nrfTx);
+        console.setInput (&uart);
+        console.setOutput (&uart);
+        uart.startReceive ();
 
+        /*---------------------------------------------------------------------------*/
+
+        //        static uint8_t bufTx[PACKET_SIZE]
+        //                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
+
+#if 0
         uint8_t bufRx[PACKET_SIZE] = {
                 0x00,
         };
 
         /*---------------------------------------------------------------------------*/
-
         Gpio ceRx (GPIOB, GPIO_PIN_8);
         ceRx.set (false);
 
@@ -121,91 +144,75 @@ int main (void)
         Spi spiRx (SPI2);
         spiRx.setNssPin (&spiRxGpiosNss);
 
-#if 1
-        //        Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
+        Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
         nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
         nrfRx.setTxAddress (CX10_ADDRESS, 5);
         nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
-        nrfRx.setAutoAck (0);
+        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0);
         nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
-        nrfRx.setChannel (0);
-        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_250, Nrf24L01P::RETRANSMIT_0);
+        nrfRx.setChannel (CHANNEL);
+        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
         nrfRx.setPayloadLength (0, PACKET_SIZE);
         nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-        nrfRx.setEnableDynamicPayload (0x00);
-        nrfRx.setFeature (0x00);
+        //        nrfRx.setEnableDynamicPayload (0x00);
+        //        nrfRx.setFeature (0x00);
         nrfRx.powerUp (Nrf24L01P::RX);
 
-        //        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
-        //                d->print ("IRQ: ");
-        //                uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
-        //                for (int i = 0; i < PACKET_SIZE; ++i) {
-        //                        d->print (out[i]);
-        //                        d->print (",");
-        //                }
-        //                d->print ("\n");
-        //        });
-
-#else
-        HAL_Delay (1);
-        //        Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
-        //        nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, false, Nrf24L01P::CRC_LEN_2);
-        //        nrfRx.setAutoAck (0);
-        //        nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
-        //        nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_18);
-        //        nrfRx.setTxAddress (CX10_ADDRESS, 5);
-        //        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
-        //        nrfRx.powerUp (Nrf24L01P::RX);
-
-#endif
-
-        /*****************************************************************************/
-        Timer tim;
-
-        int cnt = 0;
-        while (1) {
-
-#if 0
-                nrfTx.transmit (bufTx, PACKET_SIZE);
-                ++bufTx[0];
-
-                d->print ("TX : ");
-                for (int i = 0; i < PACKET_SIZE; ++i) {
-                        d->print (bufTx[i]);
-                        d->print (",");
-                }
-                d->print ("\n");
-
-                uint8_t statusTx = nrfTx.getStatus ();
-                d->print (statusTx);
-                d->print ("\n");
-
-                d->print ("TX : ");
-                for (int i = 0; i < PACKET_SIZE; ++i) {
-                        d->print (bufTx[i]);
-                        d->print (",");
-                }
-                d->print ("\n");
-#endif
-
+        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
+                d->print ("IRQ: ");
                 uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
-
-                d->print ("RX : ");
                 for (int i = 0; i < PACKET_SIZE; ++i) {
                         d->print (out[i]);
                         d->print (",");
                 }
                 d->print ("\n");
+        });
+#endif
+        /*****************************************************************************/
+        Timer tim;
 
-                HAL_Delay (500);
-                //                nrfTx.poorMansScanner (200);
-        }
-#else
+//        int cnt = 0;
         while (1) {
+
+#if 0
+                if (tim.isExpired ()) {
+                        nrfTx.transmit (bufTx, PACKET_SIZE);
+                        ++bufTx[0];
+
+//                        d->print ("TX : ");
+//                        for (int i = 0; i < PACKET_SIZE; ++i) {
+//                                d->print (bufTx[i]);
+//                                d->print (",");
+//                        }
+//                        d->print ("\n");
+
+//                        uint8_t statusTx = nrfTx.getStatus ();
+//                        d->print (statusTx);
+//                        d->print ("\n");
+
+//                        d->print ("TX : ");
+//                        for (int i = 0; i < PACKET_SIZE; ++i) {
+//                                d->print (bufTx[i]);
+//                                d->print (",");
+//                        }
+//                        d->print ("\n");
+
+//                        uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
+
+//                        d->print ("RX : ");
+//                        for (int i = 0; i < PACKET_SIZE; ++i) {
+//                                d->print (out[i]);
+//                                d->print (",");
+//                        }
+//                        d->print ("\n");
+
+                        tim.start (500);
+                }
+#endif
+                // nrfTx.poorMansScanner (200);
                 console.run ();
         }
-#endif
 }
 
 /*****************************************************************************/
