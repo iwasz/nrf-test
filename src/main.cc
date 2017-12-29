@@ -17,6 +17,11 @@ const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 #define PACKET_SIZE 5
 #define CHANNEL 100
 
+const uint8_t SYMA_ADDR[] = { 0xab, 0xac, 0xad, 0xae, 0xaf }; // bind addr
+const uint8_t SYMA_CHANNELS[] = { 0x4b, 0x30, 0x40, 0x20 };   // bind chan
+#define RX_PACKET_SIZE 10
+#define RX_CHANNEL 8
+
 /*****************************************************************************/
 
 namespace __gnu_cxx {
@@ -111,7 +116,9 @@ int main (void)
         nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
         //        nrfTx.setEnableDynamicPayload (0x00);
         //        nrfTx.setFeature (0x00);
+        HAL_Delay (100);
         nrfTx.powerUp (Nrf24L01P::TX);
+        HAL_Delay (100);
 
         /*---------------------------------------------------------------------------*/
 
@@ -125,8 +132,8 @@ int main (void)
         //        static uint8_t bufTx[PACKET_SIZE]
         //                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
 
-#if 0
-        uint8_t bufRx[PACKET_SIZE] = {
+#if 1
+        uint8_t bufRx[RX_PACKET_SIZE] = {
                 0x00,
         };
 
@@ -146,23 +153,26 @@ int main (void)
 
         Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
         nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
-        nrfRx.setTxAddress (CX10_ADDRESS, 5);
-        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
-        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0);
+        nrfRx.setTxAddress (SYMA_ADDR, 5);
+        nrfRx.setRxAddress (0, SYMA_ADDR, 5);
+        nrfRx.setAutoAck (0);
         nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
-        nrfRx.setChannel (CHANNEL);
-        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
-        nrfRx.setPayloadLength (0, PACKET_SIZE);
-        nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
+        nrfRx.setChannel (RX_CHANNEL);
+        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_4000, Nrf24L01P::RETRANSMIT_15);
+        nrfRx.setPayloadLength (0, RX_PACKET_SIZE);
+        nrfRx.setDataRate (Nrf24L01P::KBPS_250, Nrf24L01P::DBM_0);
         //        nrfRx.setEnableDynamicPayload (0x00);
         //        nrfRx.setFeature (0x00);
+
+        HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
+        HAL_Delay (100);
 
         nrfRx.setOnData ([d, &nrfRx, &bufRx] {
                 d->print ("IRQ: ");
-                uint8_t *out = nrfRx.receive (bufRx, PACKET_SIZE);
-                for (int i = 0; i < PACKET_SIZE; ++i) {
+                uint8_t *out = nrfRx.receive (bufRx, RX_PACKET_SIZE);
+                for (int i = 0; i < RX_PACKET_SIZE; ++i) {
                         d->print (out[i]);
                         d->print (",");
                 }
@@ -172,7 +182,7 @@ int main (void)
         /*****************************************************************************/
         Timer tim;
 
-//        int cnt = 0;
+        //        int cnt = 0;
         while (1) {
 
 #if 0
@@ -212,6 +222,24 @@ int main (void)
 #endif
                 // nrfTx.poorMansScanner (200);
                 console.run ();
+
+                //                uint8_t status = nrfRx.readRegister (Nrf24L01P::STATUS);
+                //                uint8_t fifoStatus = nrfRx.readRegister (Nrf24L01P::FIFO_STATUS);
+                //                d->print ("status : ");
+                //                d->print (status);
+                //                d->print (", fifo : ");
+                //                d->print (fifoStatus);
+                //                d->print ("\n");
+                //                HAL_Delay (100);
+
+                //                d->print ("LOP: ");
+                //                uint8_t *out = nrfRx.receive (bufRx, RX_PACKET_SIZE);
+                //                for (int i = 0; i < RX_PACKET_SIZE; ++i) {
+                //                        d->print (out[i]);
+                //                        d->print (",");
+                //                }
+                //                d->print ("\n");
+                //                HAL_Delay (50);
         }
 }
 
