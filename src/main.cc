@@ -2,13 +2,14 @@
 #include <Debug.h>
 #include <ErrorHandler.h>
 #include <Gpio.h>
-#include <Nrf24L01P.h>
 #include <Spi.h>
 #include <Timer.h>
 #include <Usart.h>
 #include <cstdbool>
 #include <cstring>
 #include <functional>
+#include <rf/Nrf24L01P.h>
+#include <rf/SymaX5HWRxProtocol.h>
 #include <stm32f0xx_hal.h>
 
 /*****************************************************************************/
@@ -19,8 +20,8 @@ const uint8_t CX10_ADDRESS[] = { 0xcc, 0xcc, 0xcc, 0xcc, 0xcc };
 
 const uint8_t SYMA_ADDR[] = { 0xab, 0xac, 0xad, 0xae, 0xaf }; // bind addr
 const uint8_t SYMA_CHANNELS[] = { 0x4b, 0x30, 0x40, 0x20 };   // bind chan
-#define RX_PACKET_SIZE 10
-#define RX_CHANNEL 8
+//#define RX_PACKET_SIZE 10
+//#define RX_CHANNEL 8
 
 /*****************************************************************************/
 
@@ -82,20 +83,20 @@ int main (void)
         Debug *d = Debug::singleton ();
         d->print ("nRF24L01+ test here\n");
 
-        //        Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
-        //        HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
-        //        HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
-        //        button.setOnToggle ([d] { d->print ("#"); });
+        // Gpio button (GPIOA, GPIO_PIN_0, GPIO_MODE_IT_RISING);
+        // HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
+        // HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
+        // button.setOnToggle ([d] { d->print ("#"); });
 
         /*---------------------------------------------------------------------------*/
 
         Gpio ceTx (GPIOC, GPIO_PIN_0);
         ceTx.set (false);
 
-        //        Gpio irqTx (GPIOA, GPIO_PIN_3, GPIO_MODE_IT_FALLING, GPIO_PULLUP);
-        //        HAL_NVIC_SetPriority (EXTI2_3_IRQn, 3, 0);
-        //        HAL_NVIC_EnableIRQ (EXTI2_3_IRQn);
-        //        irqTx.setOnToggle ([d] { d->print ("IRQ TX\n"); });
+        // Gpio irqTx (GPIOA, GPIO_PIN_3, GPIO_MODE_IT_FALLING, GPIO_PULLUP);
+        // HAL_NVIC_SetPriority (EXTI2_3_IRQn, 3, 0);
+        // HAL_NVIC_EnableIRQ (EXTI2_3_IRQn);
+        // irqTx.setOnToggle ([d] { d->print ("IRQ TX\n"); });
 
         Gpio spiTxGpiosNss (GPIOA, GPIO_PIN_4, GPIO_MODE_OUTPUT_OD, GPIO_PULLUP);
         Gpio spiTxGpiosSck (GPIOA, GPIO_PIN_5, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI1);
@@ -133,7 +134,7 @@ int main (void)
         //                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
 
 #if 1
-        uint8_t bufRx[RX_PACKET_SIZE] = {
+        uint8_t bufRx[SymaX5HWRxProtocol::RX_PACKET_SIZE + 1] = {
                 0x00,
         };
 
@@ -158,26 +159,31 @@ int main (void)
         nrfRx.setAutoAck (0);
         nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
-        nrfRx.setChannel (RX_CHANNEL);
+        nrfRx.setChannel (SymaX5HWRxProtocol::BIND_CHANNELS[0]);
         nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_4000, Nrf24L01P::RETRANSMIT_15);
-        nrfRx.setPayloadLength (0, RX_PACKET_SIZE);
+        nrfRx.setPayloadLength (0, SymaX5HWRxProtocol::RX_PACKET_SIZE);
         nrfRx.setDataRate (Nrf24L01P::KBPS_250, Nrf24L01P::DBM_0);
-        //        nrfRx.setEnableDynamicPayload (0x00);
-        //        nrfRx.setFeature (0x00);
 
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
         HAL_Delay (100);
 
-        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
-                d->print ("IRQ: ");
-                uint8_t *out = nrfRx.receive (bufRx, RX_PACKET_SIZE);
-                for (int i = 0; i < RX_PACKET_SIZE; ++i) {
-                        d->print (out[i]);
-                        d->print (",");
-                }
-                d->print ("\n");
+        SymaX5HWRxProtocol syma (&nrfRx);
+
+        nrfRx.setOnData ([&syma, &nrfRx, &bufRx] {
+                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
+                syma.onPacket (out);
         });
+
+//        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
+//                d->print ("IRQ: ");
+//                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
+//                for (int i = 0; i < SymaX5HWRxProtocol::RX_PACKET_SIZE; ++i) {
+//                        d->print (out[i]);
+//                        d->print (",");
+//                }
+//                d->print ("\n");
+//        });
 #endif
         /*****************************************************************************/
         Timer tim;
@@ -240,6 +246,7 @@ int main (void)
                 //                }
                 //                d->print ("\n");
                 //                HAL_Delay (50);
+
         }
 }
 
