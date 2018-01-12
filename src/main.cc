@@ -47,6 +47,8 @@ private:
         Nrf24L01P *nrf;
 };
 
+/*****************************************************************************/
+
 void MyConsole::onNewLine (const char *str, size_t len)
 {
         uint8_t buffer[5];
@@ -93,33 +95,59 @@ int main (void)
         Gpio ceTx (GPIOC, GPIO_PIN_0);
         ceTx.set (false);
 
-        // Gpio irqTx (GPIOA, GPIO_PIN_3, GPIO_MODE_IT_FALLING, GPIO_PULLUP);
-        // HAL_NVIC_SetPriority (EXTI2_3_IRQn, 3, 0);
-        // HAL_NVIC_EnableIRQ (EXTI2_3_IRQn);
-        // irqTx.setOnToggle ([d] { d->print ("IRQ TX\n"); });
+        Gpio irqTx (GPIOA, GPIO_PIN_1, GPIO_MODE_IT_FALLING, GPIO_PULLUP);
+        // TODO This one is critical for bufferRx to be consistent
+        HAL_NVIC_SetPriority (EXTI0_1_IRQn, 3, 0);
+        HAL_NVIC_EnableIRQ (EXTI0_1_IRQn);
 
         Gpio spiTxGpiosNss (GPIOA, GPIO_PIN_4, GPIO_MODE_OUTPUT_OD, GPIO_PULLUP);
         Gpio spiTxGpiosSck (GPIOA, GPIO_PIN_5, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI1);
         Gpio spiTxGpiosMosiMiso (GPIOB, GPIO_PIN_4 | GPIO_PIN_5, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI1);
         Spi spiTx (SPI1);
-        spiTx.setNssPin (&spiTxGpiosNss);
+        spiTx.setNssGpio (&spiTxGpiosNss);
 
-        Nrf24L01P nrfTx (&spiTx, &ceTx, nullptr);
-        nrfTx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
+        // Dla ułatwienia : TO JEST ROBOT. ROBOT wysyła telemetrię.
+        Nrf24L01P nrfTx (&spiTx, &ceTx, &irqTx);
+        nrfTx.setConfig (Nrf24L01P::MASK_TX_DS, true, Nrf24L01P::CRC_LEN_2);
         nrfTx.setTxAddress (CX10_ADDRESS, 5);
         nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
         nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
         nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfTx.setChannel (CHANNEL);
-        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_1000, Nrf24L01P::RETRANSMIT_15);
-        nrfTx.setPayloadLength (0, PACKET_SIZE);
+        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_1000_US, Nrf24L01P::RETRANSMIT_15);
+        // nrfTx.setPayloadLength (0, PACKET_SIZE);
         nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-        //        nrfTx.setEnableDynamicPayload (0x00);
-        //        nrfTx.setFeature (0x00);
+        nrfTx.setEnableDynamicPayload (Nrf24L01P::DPL_P0);
+        nrfTx.setFeature (Nrf24L01P::EN_ACK_PAY | Nrf24L01P::EN_DPL);
         HAL_Delay (100);
         nrfTx.powerUp (Nrf24L01P::TX);
         HAL_Delay (100);
+
+        //        uint8_t bufRx2[33] = { 0x00 };
+
+        class TxCallback : public Nrf24L01PCallback {
+        public:
+                virtual ~TxCallback () {}
+
+                virtual void onRx (uint8_t *data, size_t len)
+                {
+                        Debug *d = Debug::singleton ();
+                        d->print ("nrfTx received : ");
+                        d->printArray (data, len);
+                        d->print ("\n");
+                }
+
+                virtual void onTx () {}
+
+                virtual void onMaxRt ()
+                {
+                        Debug *d = Debug::singleton ();
+                        d->print ("nrfTx MAX_RT! Unable to send packet!");
+                }
+        } txCallback;
+
+        nrfTx.setCallback (&txCallback);
 
         /*---------------------------------------------------------------------------*/
 
@@ -130,13 +158,10 @@ int main (void)
 
         /*---------------------------------------------------------------------------*/
 
-        //        static uint8_t bufTx[PACKET_SIZE]
-        //                = { 0xaa, 0x2b, 0x59, 0x26, 0xb9, 0xff, 0xff, 0xff, 0xff, 0x01, 0x05, 0xdc, 0x05, 0xe8, 0x03, 0xdc, 0x05, 0x00, 0x00 };
+        static uint8_t bufTx[64] = { 1, 2, 3, 4, 5 };
 
 #if 1
-        uint8_t bufRx[SymaX5HWRxProtocol::RX_PACKET_SIZE + 1] = {
-                0x00,
-        };
+        //        uint8_t bufRx[SymaX5HWRxProtocol::RX_PACKET_SIZE + 1] = { 0x00 };
 
         /*---------------------------------------------------------------------------*/
         Gpio ceRx (GPIOB, GPIO_PIN_8);
@@ -148,21 +173,26 @@ int main (void)
 
         Gpio spiRxGpiosNss (GPIOB, GPIO_PIN_9, GPIO_MODE_OUTPUT_OD, GPIO_PULLUP);
         Gpio spiRxGpiosSck (GPIOB, GPIO_PIN_10, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF5_SPI2);
-        Gpio spiRxGpiosMisoMosi (GPIOB, GPIO_PIN_15 | GPIO_PIN_14, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH, GPIO_AF0_SPI2); // MOSI (15),MISO (14)
+        Gpio spiRxGpiosMisoMosi (GPIOB, GPIO_PIN_15 | GPIO_PIN_14, GPIO_MODE_AF_PP, GPIO_NOPULL, GPIO_SPEED_FREQ_HIGH,
+                                 GPIO_AF0_SPI2); // MOSI (15),MISO (14)
         Spi spiRx (SPI2);
-        spiRx.setNssPin (&spiRxGpiosNss);
+        spiRx.setNssGpio (&spiRxGpiosNss);
 
+        // A to jest na PC-cie. ODBIERA telemetrię i WYSYŁA KOMENDY w ACK.
         Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx);
         nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
-        nrfRx.setTxAddress (SYMA_ADDR, 5);
-        nrfRx.setRxAddress (0, SYMA_ADDR, 5);
-        nrfRx.setAutoAck (0);
+        nrfRx.setTxAddress (CX10_ADDRESS, 5);
+        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
+        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0);
         nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
-        nrfRx.setChannel (SymaX5HWRxProtocol::BIND_CHANNELS[0]);
-        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_4000, Nrf24L01P::RETRANSMIT_15);
-        nrfRx.setPayloadLength (0, SymaX5HWRxProtocol::RX_PACKET_SIZE);
-        nrfRx.setDataRate (Nrf24L01P::KBPS_250, Nrf24L01P::DBM_0);
+        nrfRx.setChannel (CHANNEL);
+        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_1000_US, Nrf24L01P::RETRANSMIT_15);
+        // nrfRx.setPayloadLength (0, PACKET_SIZE);
+        nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
+        nrfRx.setEnableDynamicPayload (Nrf24L01P::DPL_P0);
+        nrfRx.setFeature (Nrf24L01P::EN_ACK_PAY | Nrf24L01P::EN_DPL);
+        uint8_t ackPayload[] = { 7, 8, 9 };
 
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
@@ -170,20 +200,34 @@ int main (void)
 
         SymaX5HWRxProtocol syma (&nrfRx);
 
-        nrfRx.setOnData ([&syma, &nrfRx, &bufRx] {
-                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
-                syma.onPacket (out);
-        });
+        //        nrfRx.setOnData ([&syma, &nrfRx, &bufRx] {
+        //                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
+        //                syma.onPacket (out);
+        //        });
 
-//        nrfRx.setOnData ([d, &nrfRx, &bufRx] {
-//                d->print ("IRQ: ");
-//                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
-//                for (int i = 0; i < SymaX5HWRxProtocol::RX_PACKET_SIZE; ++i) {
-//                        d->print (out[i]);
-//                        d->print (",");
-//                }
-//                d->print ("\n");
-//        });
+        class RxCallback : public Nrf24L01PCallback {
+        public:
+                virtual ~RxCallback () {}
+
+                virtual void onRx (uint8_t *data, size_t len)
+                {
+                        Debug *d = Debug::singleton ();
+                        d->print ("nrfRx received : ");
+                        d->printArray (data, len);
+                        d->print ("\n");
+                }
+
+                virtual void onTx () {}
+
+                virtual void onMaxRt ()
+                {
+                        Debug *d = Debug::singleton ();
+                        d->print ("nrfRx MAX_RT! Unable to send packet!");
+                }
+        } rxCallback;
+
+        nrfRx.setCallback (&rxCallback);
+
 #endif
         /*****************************************************************************/
         Timer tim;
@@ -229,6 +273,15 @@ int main (void)
                 // nrfTx.poorMansScanner (200);
                 console.run ();
 
+                if (tim.isExpired ()) {
+                        nrfRx.setAckPayload (0, ackPayload, 3);
+
+                        // Fake telemetry data
+                        nrfTx.transmit (bufTx, PACKET_SIZE);
+                        ++(bufTx[4]);
+                        tim.start (500);
+                }
+
                 //                uint8_t status = nrfRx.readRegister (Nrf24L01P::STATUS);
                 //                uint8_t fifoStatus = nrfRx.readRegister (Nrf24L01P::FIFO_STATUS);
                 //                d->print ("status : ");
@@ -246,7 +299,6 @@ int main (void)
                 //                }
                 //                d->print ("\n");
                 //                HAL_Delay (50);
-
         }
 }
 
