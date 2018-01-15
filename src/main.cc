@@ -63,8 +63,8 @@ void MyConsole::onNewLine (const char *str, size_t len)
 
         int i = atoi (str + 2);
         memcpy (buffer + 1, &i, sizeof (i));
-        nrf->transmit (buffer, PACKET_SIZE);
-        //        nrf->setAckPayload (0, buffer, PACKET_SIZE);
+        //        nrf->transmit (buffer, 5);
+        nrf->setAckPayload (1, buffer, 5);
 }
 
 /*****************************************************************************/
@@ -111,17 +111,16 @@ int main (void)
         // Dla ułatwienia : TO JEST ROBOT. ROBOT wysyła telemetrię.
         Nrf24L01P nrfTx (&spiTx, &ceTx, &irqTx, 10);
         nrfTx.setConfig (Nrf24L01P::MASK_TX_DS, true, Nrf24L01P::CRC_LEN_2);
-        nrfTx.setTxAddress (CX10_ADDRESS, 5);
-        nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
-//        nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
+        //        nrfTx.setTxAddress (CX10_ADDRESS, 5);
+        //        nrfTx.setRxAddress (0, CX10_ADDRESS, 5);
+        nrfTx.setAutoAck (Nrf24L01P::ENAA_P0);
         nrfTx.setEnableDataPipe (Nrf24L01P::ERX_P0);
         nrfTx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfTx.setChannel (CHANNEL);
-//        nrfTx.setAutoRetransmit (Nrf24L01P::WAIT_1000_US, Nrf24L01P::RETRANSMIT_15);
         nrfTx.setPayloadLength (0, PACKET_SIZE);
         nrfTx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
-        //        nrfTx.setEnableDynamicPayload (Nrf24L01P::DPL_P0);
-        //        nrfTx.setFeature (Nrf24L01P::EN_ACK_PAY | Nrf24L01P::EN_DPL);
+        nrfTx.setEnableDynamicPayload (Nrf24L01P::DPL_P0);
+        nrfTx.setFeature (Nrf24L01P::EN_DPL | Nrf24L01P::EN_ACK_PAY);
         HAL_Delay (100);
         nrfTx.powerUp (Nrf24L01P::TX);
         HAL_Delay (100);
@@ -176,29 +175,29 @@ int main (void)
 
         // A to jest na PC-cie. ODBIERA telemetrię i WYSYŁA KOMENDY w ACK.
         Nrf24L01P nrfRx (&spiRx, &ceRx, &irqRx, 10);
-        nrfRx.setConfig (Nrf24L01P::MASK_NO_IRQ, true, Nrf24L01P::CRC_LEN_2);
-        nrfRx.setTxAddress (CX10_ADDRESS, 5);
-        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
-        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0);
-        nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0);
+        nrfRx.setConfig (Nrf24L01P::MASK_TX_DS, true, Nrf24L01P::CRC_LEN_2);
+        //        nrfRx.setTxAddress (CX10_ADDRESS, 5);
+        //        nrfRx.setRxAddress (0, CX10_ADDRESS, 5);
+        nrfRx.setAutoAck (Nrf24L01P::ENAA_P0 | Nrf24L01P::ENAA_P1);
+        nrfRx.setEnableDataPipe (Nrf24L01P::ERX_P0 | Nrf24L01P::ERX_P1);
         nrfRx.setAdressWidth (Nrf24L01P::WIDTH_5);
         nrfRx.setChannel (CHANNEL);
-        nrfRx.setAutoRetransmit (Nrf24L01P::WAIT_1000_US, Nrf24L01P::RETRANSMIT_15);
-        nrfRx.setPayloadLength (0, PACKET_SIZE);
+        //        nrfRx.setPayloadLength (0, PACKET_SIZE);
+        //        nrfRx.setPayloadLength (1, PACKET_SIZE);
         nrfRx.setDataRate (Nrf24L01P::MBPS_1, Nrf24L01P::DBM_0);
+        nrfRx.setEnableDynamicPayload (Nrf24L01P::DPL_P0 | Nrf24L01P::DPL_P1);
+        nrfRx.setFeature (Nrf24L01P::EN_DPL | Nrf24L01P::EN_ACK_PAY);
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
         HAL_Delay (100);
 
-        //        nrfRx.setEnableDynamicPayload (Nrf24L01P::DPL_P0);
-        //        nrfRx.setFeature (Nrf24L01P::EN_ACK_PAY | Nrf24L01P::EN_DPL);
-        uint8_t ackPayload[] = { 7, 8, 9 };
+        uint8_t ackPayload[] = { 7, 8, 9, 10, 11 };
 
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
         HAL_Delay (100);
 
-//        SymaX5HWRxProtocol syma (&nrfRx);
+        //        SymaX5HWRxProtocol syma (&nrfRx);
 
         //        nrfRx.setOnData ([&syma, &nrfRx, &bufRx] {
         //                uint8_t *out = nrfRx.receive (bufRx, SymaX5HWRxProtocol::RX_PACKET_SIZE);
@@ -212,8 +211,23 @@ int main (void)
                 virtual void onRx (uint8_t *data, size_t len)
                 {
                         Debug *d = Debug::singleton ();
-                        // d->print ("nrfRx received : ");
-                        d->printArray (data, len);
+
+                        int pitchI = *reinterpret_cast<int *> (data);
+                        d->print (pitchI);
+                        d->print (",");
+
+                        int errorI = *reinterpret_cast<int *> (data + 4);
+                        d->print (errorI);
+                        d->print (",");
+
+                        int integralI = *reinterpret_cast<int *> (data + 8);
+                        d->print (integralI);
+                        d->print (",");
+
+                        int derivativeI = *reinterpret_cast<int *> (data + 12);
+                        d->print (derivativeI);
+                        d->print (",");
+
                         d->print ("\n");
                 }
 
@@ -231,10 +245,10 @@ int main (void)
 #endif
         /*---------------------------------------------------------------------------*/
 
-//        MyConsole console (&nrfTx);
-//        console.setInput (&uart);
-//        console.setOutput (&uart);
-//        uart.startReceive ();
+        MyConsole console (&nrfRx);
+        console.setInput (&uart);
+        console.setOutput (&uart);
+        uart.startReceive ();
 
         /*---------------------------------------------------------------------------*/
 
@@ -279,34 +293,17 @@ int main (void)
                 }
 #endif
                 // nrfTx.poorMansScanner (200);
-//                console.run ();
+                console.run ();
 
                 if (tim.isExpired ()) {
-                        //                        nrfRx.setAckPayload (0, ackPayload, 3);
+                        //                        nrfRx.setAckPayload (1, ackPayload, 5);
+                        //                        ++(ackPayload[2]);
 
                         // Fake telemetry data
-//                        nrfTx.transmit (bufTx, PACKET_SIZE);
-//                        ++(bufTx[4]);
+                        //                        nrfTx.transmit (bufTx, PACKET_SIZE);
+                        //                        ++(bufTx[4]);
                         tim.start (500);
                 }
-
-                //                uint8_t status = nrfRx.readRegister (Nrf24L01P::STATUS);
-                //                uint8_t fifoStatus = nrfRx.readRegister (Nrf24L01P::FIFO_STATUS);
-                //                d->print ("status : ");
-                //                d->print (status);
-                //                d->print (", fifo : ");
-                //                d->print (fifoStatus);
-                //                d->print ("\n");
-                //                HAL_Delay (100);
-
-                //                d->print ("LOP: ");
-                //                uint8_t *out = nrfRx.receive (bufRx, RX_PACKET_SIZE);
-                //                for (int i = 0; i < RX_PACKET_SIZE; ++i) {
-                //                        d->print (out[i]);
-                //                        d->print (",");
-                //                }
-                //                d->print ("\n");
-                //                HAL_Delay (50);
         }
 }
 
