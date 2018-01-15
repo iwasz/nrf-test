@@ -39,7 +39,7 @@ static void SystemClock_Config (void);
 
 class MyConsole : public Console {
 public:
-        MyConsole (Nrf24L01P *n) : nrf (n) {}
+        MyConsole (Nrf24L01P *n) : Console (false, nullptr), nrf (n) {}
         virtual ~MyConsole () {}
         void onNewLine (const char *str, size_t len);
 
@@ -153,7 +153,7 @@ int main (void)
 
         /*---------------------------------------------------------------------------*/
 
-        static uint8_t bufTx[64] = { 1, 2, 3, 4, 5 };
+//        static uint8_t bufTx[64] = { 1, 2, 3, 4, 5 };
 
 #if 1
         //        uint8_t bufRx[SymaX5HWRxProtocol::RX_PACKET_SIZE + 1] = { 0x00 };
@@ -191,7 +191,7 @@ int main (void)
         nrfRx.powerUp (Nrf24L01P::RX);
         HAL_Delay (100);
 
-        uint8_t ackPayload[] = { 7, 8, 9, 10, 11 };
+//        uint8_t ackPayload[] = { 7, 8, 9, 10, 11 };
 
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
@@ -227,6 +227,9 @@ int main (void)
                         int derivativeI = *reinterpret_cast<int *> (data + 12);
                         d->print (derivativeI);
                         d->print (",");
+
+                        int outI = *reinterpret_cast<int *> (data + 16);
+                        d->print (outI);
 
                         d->print ("\n");
                 }
