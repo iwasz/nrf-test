@@ -153,7 +153,7 @@ int main (void)
 
         /*---------------------------------------------------------------------------*/
 
-//        static uint8_t bufTx[64] = { 1, 2, 3, 4, 5 };
+        //        static uint8_t bufTx[64] = { 1, 2, 3, 4, 5 };
 
 #if 1
         //        uint8_t bufRx[SymaX5HWRxProtocol::RX_PACKET_SIZE + 1] = { 0x00 };
@@ -191,7 +191,7 @@ int main (void)
         nrfRx.powerUp (Nrf24L01P::RX);
         HAL_Delay (100);
 
-//        uint8_t ackPayload[] = { 7, 8, 9, 10, 11 };
+        //        uint8_t ackPayload[] = { 7, 8, 9, 10, 11 };
 
         HAL_Delay (100);
         nrfRx.powerUp (Nrf24L01P::RX);
@@ -212,26 +212,31 @@ int main (void)
                 {
                         Debug *d = Debug::singleton ();
 
-                        int pitchI = *reinterpret_cast<int *> (data);
+                        int index = *reinterpret_cast<int *> (data);
+
+                        int pitchI = *reinterpret_cast<int *> (data + 4);
                         d->print (pitchI);
                         d->print (",");
 
-                        int errorI = *reinterpret_cast<int *> (data + 4);
+                        int errorI = *reinterpret_cast<int *> (data + 8);
                         d->print (errorI);
                         d->print (",");
 
-                        int integralI = *reinterpret_cast<int *> (data + 8);
+                        int integralI = *reinterpret_cast<int *> (data + 12);
                         d->print (integralI);
                         d->print (",");
 
-                        int derivativeI = *reinterpret_cast<int *> (data + 12);
+                        int derivativeI = *reinterpret_cast<int *> (data + 16);
                         d->print (derivativeI);
                         d->print (",");
 
-                        int outI = *reinterpret_cast<int *> (data + 16);
+                        int outI = *reinterpret_cast<int *> (data + 20);
                         d->print (outI);
+                        d->print (",");
 
-                        d->print ("\n");
+                        if (index % 100 == 0) {
+                                d->print ("\n");
+                        }
                 }
 
                 virtual void onTx () {}
